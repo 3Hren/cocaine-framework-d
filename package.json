@@ -1,0 +1,14 @@
+{
+	"name": "cfd",
+	"description": "An example project skeleton",
+	"homepage": "http://example.org",
+	"copyright": "Copyright © 2000, Your Name",
+	"versions": ["VibeCustomMain"],
+	"authors": [
+		"Evgeny Safronov"
+	],
+	"dependencies": {		
+		"vibe-d": {"version": "<=0.7.19"},
+		"msgpack-d": {"version": "~master"},
+	}
+}
