@@ -8,93 +8,12 @@ import msgpack;
 import vibe.vibe;
 import vibe.core.log;
 
-enum MessageType : uint {
-	CHUNK = 4,
-	ERROR = 5,
-	CHOKE = 6
-}
-
-struct Packet {
-	uint id;
-	ulong session;
-	string[] data;
-}
-
-struct Chunk {
-	MessageType id;
-	ulong session;
-	string[] data;	
-}
-
-
-struct Error {
-	MessageType id;
-	ulong session;
-	Tuple!(uint, "errno", string, "message") reason;
-}
-
-struct Choke {
-	MessageType id;
-	ulong session;
-	uint unused;
-}
+import cocaine.stream;
 
 struct ResolveInfo {
 	Tuple!(string, "host", ushort, "port") endpoint;
 	uint version_;
 	string[uint] api;
-}
-
-struct Downstream {
-	private TCPConnection connection;
-	private StreamingUnpacker unpacker = StreamingUnpacker(cast(ubyte[])null);
-
-	this(TCPConnection connection) {
-		this.connection = connection;
-	}	
-
-	Tuple!T readAll(T...)() {
-		Tuple!T result;
-		foreach(ref item; result.tupleof)
-			read!(typeof(item))(item);
-		return result;
-	}
-
-	T readAll(T)() {
-		T result;
-		read!(T)(result);
-		return result;
-	}
-
-	private void read(T)(ref T item) {
-		Done: while (true) {
-			ubyte[] response = new ubyte[connection.leastSize];			
-			connection.read(response);
-			unpacker.feed(response);
-
-			while (unpacker.execute()) {
-				auto unpacked = unpacker.purge();
-				MessageType messageId = unpacked[0].as!(MessageType);
-				logDiagnostic("message id=%d", messageId);
-
-				final switch (messageId) {
-					case MessageType.CHUNK: {
-						Chunk chunk = unpacked.as!(Chunk);
-						msgpack.unpack(cast(ubyte[])chunk.data[0], item);
-						break;
-					}
-					case MessageType.ERROR: {
-						Error error = unpacked.as!(Error);
-						throw new Exception(error.reason.message);
-					}
-					case MessageType.CHOKE: {
-						Choke choke = unpacked.as!(Choke);
-						break Done;
-					}
-				}
-			}
-		}
-	}
 }
 
 struct Locator {
@@ -116,13 +35,12 @@ struct Locator {
 	public ResolveInfo resolve(string name) {
 		Downstream downstream = sendMessage(0, [name]);
 		ResolveInfo info = downstream.readAll!(ResolveInfo);
-		logDiagnostic("service '%s' resolved: %s", name, info);
+		logDiagnostic("[Cocaine]: service '%s' resolved: %s", name, info);
 		return info;
 	}
 
 	private Downstream sendMessage(uint id, string[] data) {		
-		Packet packet = {id, session++, data};
-		return sendMessage(packet);
+		return sendMessage(Tuple!(uint, ulong, string[])(id, session++, data));
 	}
 
 	private Downstream sendMessage(T)(T message) {	
@@ -154,12 +72,12 @@ class Service {
 		ResolveInfo info = locator.resolve(name);						
 
 		Address[] addresses = getAddress(info.endpoint.host, info.endpoint.port);
-		logDebug("[Cocaine]: candidates: %s", addresses);
+		logDiagnostic("[Cocaine]: candidates: %s", addresses);
 		foreach (Address address; addresses) {			
 			try {
-				logDebug("[Cocaine]: trying: %s", address);
+				logDiagnostic("[Cocaine]: trying: %s", address);
 				conn = connectTCP(address.toAddrString(), info.endpoint.port);
-				logDebug("[Cocaine]: succeed");
+				logDiagnostic("[Cocaine]: succeed");
 				break;
 			} catch (Exception err) {
 				logWarn("[Cocaine]: %s", err.msg);
@@ -182,11 +100,6 @@ class Service {
 		Downstream downstream = Downstream(conn);
 		conn.write(packer.stream.data);
 		return downstream;
-	}
-
-	private Downstream sendMessage(uint id, string[] data) {		
-		Packet packet = {id, session++, data};
-		return sendMessage(packet);
 	}
 
 	private Downstream sendMessage(T)(T message) {	
