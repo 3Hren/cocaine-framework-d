@@ -8,8 +8,6 @@ import msgpack;
 import vibe.vibe;
 import vibe.core.log;
 
-import cocaine.protocol;
-
 enum MessageType : uint {
 	CHUNK = 4,
 	ERROR = 5,
@@ -42,7 +40,7 @@ struct Choke {
 }
 
 struct ResolveInfo {
-	Tuple!(string, "host", ushort, "port") address;
+	Tuple!(string, "host", ushort, "port") endpoint;
 	uint version_;
 	string[uint] api;
 }
@@ -145,12 +143,32 @@ class Service {
 	}
 
 	public void connect(string host = "localhost", ushort port = 10053) {
-		if (conn is null || !conn.connected) {
-			Locator locator = Locator.get();
-			locator.connect(host, port);
-			ResolveInfo info = locator.resolve(name);			
-			conn = connectTCP(info.address.host, info.address.port);				
+		import std.socket;
+
+		if (conn !is null && conn.connected) {
+			return;
 		}
+
+		Locator locator = Locator.get();
+		locator.connect(host, port);					
+		ResolveInfo info = locator.resolve(name);						
+
+		Address[] addresses = getAddress(info.endpoint.host, info.endpoint.port);
+		logDebug("[Cocaine]: candidates: %s", addresses);
+		foreach (Address address; addresses) {			
+			try {
+				logDebug("[Cocaine]: trying: %s", address);
+				conn = connectTCP(address.toAddrString(), info.endpoint.port);
+				logDebug("[Cocaine]: succeed");
+				break;
+			} catch (Exception err) {
+				logWarn("[Cocaine]: %s", err.msg);
+			}
+		}
+
+		if (conn is null) {
+			throw new Exception("failed to connect to the service %s", name);
+		}		
 	}
 
 	public Downstream sendMessage(Args...)(uint id, Args data) {		
@@ -327,7 +345,8 @@ struct Repository {
 }
 
 int main() { 
-	setLogLevel(LogLevel.trace);	
+	setLogLevel(LogLevel.trace);
+	setLogFormat(FileLogger.Format.thread);	
 
 	// Query locator
 	//runTask({			
