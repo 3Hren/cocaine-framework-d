@@ -13,47 +13,6 @@ struct CocaineService {
 	string name;
 };
 
-struct ResolveInfo {
-	Tuple!(string, "host", ushort, "port") endpoint;
-	uint version_;
-	string[uint] api;
-}
-
-struct Locator {
-	private TCPConnection conn;
-	private ulong session;
-
-	static public Locator get() {
-		Locator locator;
-		locator.connect();
-		return locator;
-	}	
-
-	public void connect(string host = "localhost", ushort port = 10053) {
-		if (conn is null || !conn.connected) {
-			conn = connectTCP(host, port);				
-		}
-	}
-
-	public ResolveInfo resolve(string name) {
-		Downstream downstream = sendMessage(0, [name]);
-		ResolveInfo info = downstream.readAll!(ResolveInfo);
-		logDiagnostic("[Cocaine]: service '%s' resolved: %s", name, info);
-		return info;
-	}
-
-	private Downstream sendMessage(uint id, string[] data) {		
-		return sendMessage(Tuple!(uint, ulong, string[])(id, session++, data));
-	}
-
-	private Downstream sendMessage(T)(T message) {	
-		Downstream downstream = Downstream(conn);
-		ubyte[] packed = msgpack.pack(message);
-		conn.write(packed);
-		return downstream;
-	}
-}
-
 class Service {
 	private TCPConnection conn;
 	private ulong session;
@@ -111,4 +70,35 @@ class Service {
 		conn.write(packed);
 		return downstream;
 	}	
+}
+
+struct ResolveInfo {
+	Tuple!(string, "host", ushort, "port") endpoint;
+	uint version_;
+	string[uint] api;
+}
+
+class Locator : Service {	
+	static public Locator get() {
+		Locator locator = new Locator;
+		locator.connect();
+		return locator;
+	}	
+
+	public this() {
+		super("locator");
+	}
+
+	public override void connect(string host = "localhost", ushort port = 10053) {
+		if (conn is null || !conn.connected) {
+			conn = connectTCP(host, port);				
+		}
+	}
+
+	public ResolveInfo resolve(string name) {
+		Downstream downstream = sendMessage(0, name);
+		ResolveInfo info = downstream.readAll!(ResolveInfo);
+		logDiagnostic("[Cocaine]: service '%s' resolved: %s", name, info);
+		return info;
+	}
 }
