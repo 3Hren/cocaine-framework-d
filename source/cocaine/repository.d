@@ -1,7 +1,7 @@
 module cocaine.repository;
 
 import std.conv;
-import std.traits : FunctionTypeOf, ParameterTypeTuple, ReturnType;
+import std.traits;
 import std.typecons;
 import std.typetuple;
 
@@ -114,7 +114,7 @@ struct Repository {
 
 		alias TargetMembers = Uniq!(GetOverloadedMethods!(T));		
                     
-		final class Implementation : T {
+		final class ServiceImplementation : T {
 			private Service service = new Service(getServiceName!(T));
 
 			private template generateFunction(size_t id) {
@@ -139,6 +139,6 @@ struct Repository {
 			mixin mixinAll!(staticMap!(generateFunction, staticIota!(0, TargetMembers.length)));						
 		}
 
-		return new Implementation;
+		return new ServiceImplementation;
 	}
 }
