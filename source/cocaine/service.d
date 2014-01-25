@@ -14,7 +14,7 @@ struct CocaineService {
 };
 
 class Service {
-	private TCPConnection conn;
+	private TCPConnection connection;
 	private ulong session;
 	private string name;	
 
@@ -25,7 +25,7 @@ class Service {
 	public void connect(string host = "localhost", ushort port = 10053) {
 		import std.socket;
 
-		if (conn !is null && conn.connected) {
+		if (connection !is null && connection.connected) {
 			return;
 		}
 
@@ -38,7 +38,7 @@ class Service {
 		foreach (Address address; addresses) {			
 			try {
 				logDiagnostic("[Cocaine]: trying: %s", address);
-				conn = connectTCP(address.toAddrString(), info.endpoint.port);
+				connection = connectTCP(address.toAddrString(), info.endpoint.port);
 				logDiagnostic("[Cocaine]: succeed");
 				break;
 			} catch (Exception err) {
@@ -46,7 +46,7 @@ class Service {
 			}
 		}
 
-		if (conn is null) {
+		if (connection is null) {
 			throw new Exception("failed to connect to the service %s", name);
 		}		
 	}
@@ -59,15 +59,15 @@ class Service {
 		packer.beginArray(data.length);	
 		packer.pack(data);			
 
-		Downstream downstream = Downstream(conn);
-		conn.write(packer.stream.data);
+		Downstream downstream = Downstream(connection);
+		connection.write(packer.stream.data);
 		return downstream;
 	}
 
 	private Downstream sendMessage(T)(T message) {	
-		Downstream downstream = Downstream(conn);
+		Downstream downstream = Downstream(connection);
 		ubyte[] packed = msgpack.pack(message);
-		conn.write(packed);
+		connection.write(packed);
 		return downstream;
 	}	
 }
@@ -90,8 +90,8 @@ class Locator : Service {
 	}
 
 	public override void connect(string host = "localhost", ushort port = 10053) {
-		if (conn is null || !conn.connected) {
-			conn = connectTCP(host, port);				
+		if (connection is null || !connection.connected) {
+			connection = connectTCP(host, port);				
 		}
 	}
 

@@ -15,14 +15,14 @@ struct Downstream {
 		this.connection = connection;
 	}	
 
-	Tuple!T readAll(T...)() {
+	public Tuple!T readAll(T...)() {
 		Tuple!T result;
 		foreach(ref item; result.tupleof)
 			read!(typeof(item))(item);
 		return result;
 	}
 
-	T readAll(T)() {
+	public T readAll(T)() {
 		T result;
 		read!(T)(result);
 		return result;

@@ -109,7 +109,7 @@ private template Uniq(Members...) {
 }
 
 struct Repository {
-	static T create(T)() {
+	public static T create(T)() {
 		static assert(hasAttribute!(T, CocaineService), "cocaine services must be decorated with 'CocaineService' attribute");
 
 		alias TargetMembers = Uniq!(GetOverloadedMethods!(T));		
