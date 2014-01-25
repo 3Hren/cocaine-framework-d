@@ -10,6 +10,7 @@ import cocaine.protocol;
 struct Downstream {
 	private TCPConnection connection;
 	private StreamingUnpacker unpacker = StreamingUnpacker(cast(ubyte[])null);
+	private bool closed;
 
 	this(TCPConnection connection) {
 		this.connection = connection;
@@ -17,8 +18,9 @@ struct Downstream {
 
 	public Tuple!T readAll(T...)() {
 		Tuple!T result;
-		foreach(ref item; result.tupleof)
+		foreach(ref item; result.tupleof) {
 			read!(typeof(item))(item);
+		}
 		return result;
 	}
 
@@ -29,13 +31,12 @@ struct Downstream {
 	}
 
 	private void read(T)(ref T item) {
-		Done: while (true) {
+		while (!closed) {
 			ubyte[] response = new ubyte[connection.leastSize];			
 			connection.read(response);
 			unpacker.feed(response);
 
-			while (unpacker.execute()) {
-				auto unpacked = unpacker.purge();
+			foreach (unpacked; unpacker) {
 				MessageType messageId = unpacked[0].as!(MessageType);
 				logDiagnostic("[Cocaine]: message id=%d", messageId);
 
@@ -51,7 +52,8 @@ struct Downstream {
 					}
 					case MessageType.CHOKE: {
 						cocaine.protocol.Choke choke = unpacked.as!(cocaine.protocol.Choke);
-						break Done;
+						closed = true;
+						break;
 					}
 				}
 			}
