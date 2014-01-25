@@ -110,18 +110,19 @@ private template Uniq(Members...) {
 
 struct Repository {
 	static T create(T)() {
-		alias TargetMembers = Uniq!(GetOverloadedMethods!(T));
+		static assert(hasAttribute!(T, CocaineService), "cocaine services must be decorated with 'CocaineService' attribute");
+
+		alias TargetMembers = Uniq!(GetOverloadedMethods!(T));		
                     
 		final class Implementation : T {
-			private Service service;
+			private Service service = new Service(getServiceName!(T));
 
 			private template generateFunction(size_t id) {
 				enum name = TargetMembers[id].name;            				
 				enum n = to!string(id);
-				enum functionBody = "execute!(ReturnType!(TargetMembers["~n~"].type))("~n~", args)";				
 				enum generateFunction = 
 				"override ReturnType!(TargetMembers["~n~"].type) "~name~"(ParameterTypeTuple!(TargetMembers["~n~"].type) args) "~"{ 
-					return "~functionBody~"; 
+					return execute!(ReturnType!(TargetMembers["~n~"].type))("~n~", args); 
 				}";
 			}		
 
@@ -131,10 +132,7 @@ struct Repository {
 			}
 
 		public:		
-			this() {
-				static assert(hasAttribute!(T, CocaineService), "cocaine services must be decorated with 'CocaineService' attribute");				 
-				string name = getServiceName!T;
-				service = new Service(name);
+			this() {				
 				service.connect();
 			}
 
