@@ -19,14 +19,14 @@ struct Downstream {
 	public Tuple!T readAll(T...)() {
 		Tuple!T result;
 		foreach(ref item; result.tupleof) {
-			read!(typeof(item))(item);
+			read(item);
 		}
 		return result;
 	}
 
 	public T readAll(T)() {
 		T result;
-		read!(T)(result);
+		read(result);
 		return result;
 	}
 
