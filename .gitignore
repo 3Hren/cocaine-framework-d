@@ -1,1 +1,6 @@
+# [Project Files]
 .dub
+*.pro
+*.pro.user
+Makefile
+.qmake.stash

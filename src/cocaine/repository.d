@@ -21,10 +21,11 @@ private template GetOverloadedMethods(T) {
             enum name = allMembers[i];
 
             template isMethod(alias f) {
-                static if (is(typeof(&f) F == F*) && is(F == function))
+                static if (is(typeof(&f) F == F*) && is(F == function)) {
                     enum isMethod = !__traits(isStaticFunction, f);
-                else
+                } else {
                     enum isMethod = false;
+                }
             }
             alias follows = TypeTuple!(std.typetuple.Filter!(isMethod, __traits(getOverloads, T, name)), follows!(i + 1));
         }
@@ -60,13 +61,13 @@ private template mixinAll(mixins...) {
 }
 
 private template hasAttribute(T, Attribute) {
-	enum hasAttribute = (staticIndexOf!(Attribute, typeof(__traits(getAttributes, T))) != -1);    
+    enum hasAttribute = (staticIndexOf!(Attribute, typeof(__traits(getAttributes, T))) != -1);
 }
 
 private template getServiceName(Service) {
-	enum id = staticIndexOf!(CocaineService, typeof(__traits(getAttributes, Service)));
-	enum attribute = __traits(getAttributes, Service)[id];
-	enum getServiceName = __traits(getMember, attribute, "name");
+    enum id = staticIndexOf!(CocaineService, typeof(__traits(getAttributes, Service)));
+    enum attribute = __traits(getAttributes, Service)[id];
+    enum getServiceName = __traits(getMember, attribute, "name");
 }
 
 private template FuncInfo(string s, F) {
@@ -87,7 +88,7 @@ private template Uniq(Members...) {
                 enum ptrdiff_t check = -1;
             } else {
                 enum ptrdiff_t check = __traits(identifier, Func) == __traits(identifier, mem[i]) &&
-                	!is(DerivedFunctionType!(type, FunctionTypeOf!(mem[i])) == void) ? i : check!(i + 1, mem);
+                        !is(DerivedFunctionType!(type, FunctionTypeOf!(mem[i])) == void) ? i : check!(i + 1, mem);
             }
         }
 
@@ -108,37 +109,54 @@ private template Uniq(Members...) {
     }
 }
 
-struct Repository {
-	public static T create(T)() {
-		static assert(hasAttribute!(T, CocaineService), "cocaine services must be decorated with 'CocaineService' attribute");
+class ServiceManager {
+    private const string host;
+    private const ushort port;
 
-		alias TargetMembers = Uniq!(GetOverloadedMethods!(T));		
-                    
-		final class ServiceImplementation : T {
-			private Service service = new Service(getServiceName!(T));
+    public this(string host = Defaults.LOCATOR.host, ushort port = Defaults.LOCATOR.port) {
+        this.host = host;
+        this.port = port;
+    }
 
-			private template generateFunction(size_t id) {
-				enum name = TargetMembers[id].name;            				
-				enum n = to!string(id);
-				enum generateFunction = 
-				"override ReturnType!(TargetMembers["~n~"].type) "~name~"(ParameterTypeTuple!(TargetMembers["~n~"].type) args) "~"{ 
-					return execute!(ReturnType!(TargetMembers["~n~"].type))("~n~", args); 
-				}";
-			}		
+    public T create(T)() {
+        static assert(hasAttribute!(T, CocaineService), "cocaine services must be decorated with 'CocaineService' attribute");
 
-			private T execute(T, Args...)(uint id, Args args) {
-				Downstream downstream = service.sendMessage(id, args);
-				return downstream.readAll!(T);				
-			}
+        alias TargetMembers = Uniq!(GetOverloadedMethods!(T));
 
-		public:		
-			this() {				
-				service.connect();
-			}
+        final class ServiceWrapper : T {
+            private Service service = new Service(getServiceName!(T));
 
-			mixin mixinAll!(staticMap!(generateFunction, staticIota!(0, TargetMembers.length)));						
-		}
+            private template generateFunction(size_t id) {
+                enum name = TargetMembers[id].name;
+                enum n = to!string(id);
+                enum generateFunction =
+                "override ReturnType!(TargetMembers["~n~"].type) "~name~"(ParameterTypeTuple!(TargetMembers["~n~"].type) args) "~"{
+                        if (!service.isConnected) {
+                            service.connect();
+                        }
+                        return invokeMethod!(ReturnType!(TargetMembers["~n~"].type))("~n~", args);
+                }";
+            }
 
-		return new ServiceImplementation;
-	}
+            private T invokeMethod(T, Args...)(uint id, Args args) if (!is(T : Downstream) && !is(T == void)) {
+                // TODO: read all chunks from downstream. Check chunks.length == 1.
+                auto downstream = service.sendMessage(id, args);
+                return downstream.read!T;
+            }
+
+            private void invokeMethod(T, Args...)(uint id, Args args) if (is(T == void)) {
+                auto downstream = service.sendMessage(id, args);
+                downstream.wait();
+            }
+
+//            private Downstream invokeMethod(Args...)(uint id, Args args) {
+//                return service.sendMessage(id, args);
+//            }
+
+        public:
+            mixin mixinAll!(staticMap!(generateFunction, staticIota!(0, TargetMembers.length)));
+        }
+
+        return new ServiceWrapper;
+    }
 }
