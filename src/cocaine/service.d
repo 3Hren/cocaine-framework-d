@@ -3,6 +3,7 @@ module cocaine.service;
 import std.container;
 import std.stdio;
 import std.variant;
+import std.socket;
 
 import msgpack;
 
@@ -33,11 +34,7 @@ class Downstream {
     struct Message {
         Algebraic!(CocaineChunk, CocaineError) message;
 
-        public this(CocaineChunk message) {
-            this.message = message;
-        }
-
-        public this(CocaineError message) {
+        public this(T)(T message) if (is(T == CocaineChunk) || is(T == CocaineError)) {
             this.message = message;
         }
 
@@ -229,8 +226,21 @@ class Service : BaseService {
 
         Locator locator = new Locator();
         auto resolveInfo = locator.resolve(name);
-        logDebug("[Cocaine]: service '%s' resolved - %s", name, resolveInfo);
-        connection = connectTCP(resolveInfo.endpoint.host, resolveInfo.endpoint.port);
+        logDiagnostic("[Cocaine]: service '%s' resolved - %s", name, resolveInfo);
+//        connection = connectTCP(resolveInfo.endpoint.host, resolveInfo.endpoint.port);
+//        TODO: Resolve dnsresolve problev with vibe.d.
+        Address[] addresses = getAddress(resolveInfo.endpoint.host, resolveInfo.endpoint.port);
+        logDiagnostic("[Cocaine]: candidates: %s", addresses);
+        foreach (address; addresses) {
+            try {
+                logDiagnostic("[Cocaine]: trying: %s", address);
+                connection = connectTCP(address.toAddrString(), resolveInfo.endpoint.port);
+                logDiagnostic("[Cocaine]: succeed");
+                break;
+            } catch (Exception err) {
+                logWarn("[Cocaine]: %s", err.msg);
+            }
+        }
         foreach (methodId, methodName; resolveInfo.api) {
             api[methodName] = methodId;
         }
