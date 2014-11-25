@@ -4,3 +4,7 @@
 *.pro.user
 Makefile
 .qmake.stash
+cocaine-framework-d.config
+cocaine-framework-d.creator
+cocaine-framework-d.files
+cocaine-framework-d.includes
