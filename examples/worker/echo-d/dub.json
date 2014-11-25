@@ -1,0 +1,10 @@
+{
+    "name": "echo-d",
+    "targetType": "executable",
+    "versions": ["VibeCustomMain"],
+    "sourcePaths": ["."],
+    "dependencies": {
+        "vibe-d": {"version": "~master"},
+        "cocaine": "~master",
+    }
+}

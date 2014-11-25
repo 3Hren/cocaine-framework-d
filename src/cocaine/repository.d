@@ -109,12 +109,14 @@ private template Uniq(Members...) {
     }
 }
 
+interface Application {}
+
 class ServiceManager {
     private const string host;
     private const ushort port;
 
-    public this(string host = Defaults.LOCATOR.host, ushort port = Defaults.LOCATOR.port) {
-        this.host = host;
+    public this(in string host = Defaults.LOCATOR.host, ushort port = Defaults.LOCATOR.port) {
+        this.host = host.idup;
         this.port = port;
     }
 
@@ -131,10 +133,10 @@ class ServiceManager {
                 enum n = to!string(id);
                 enum generateFunction =
                 "override ReturnType!(TargetMembers["~n~"].type) "~name~"(ParameterTypeTuple!(TargetMembers["~n~"].type) args) "~"{
-                        if (!service.isConnected) {
-                            service.connect();
-                        }
-                        return invokeMethod!(ReturnType!(TargetMembers["~n~"].type))("~n~", args);
+                    if (!service.isConnected) {
+                        service.connect();
+                    }
+                    return invokeMethod!(ReturnType!(TargetMembers["~n~"].type))("~n~", args);
                 }";
             }
 
@@ -148,10 +150,6 @@ class ServiceManager {
                 auto downstream = service.sendMessage(id, args);
                 downstream.wait();
             }
-
-//            private Downstream invokeMethod(Args...)(uint id, Args args) {
-//                return service.sendMessage(id, args);
-//            }
 
         public:
             mixin mixinAll!(staticMap!(generateFunction, staticIota!(0, TargetMembers.length)));
